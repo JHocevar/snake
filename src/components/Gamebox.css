@@ -1,0 +1,7 @@
+.gamebox {
+    height: 80%;
+    width: 80%;
+    border: 10px solid black;
+    /* margin: 2%; */
+    background-color: blanchedalmond;
+}

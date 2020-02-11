@@ -1,5 +1,19 @@
-html, body, #app, #root {
-    height: 100%;
-    width: 100%;
-    text-align: center;
+html,
+body,
+#app,
+#root {
+  height: 100%;
+  width: 100%;
+  text-align: center;
+  background-color: bisque;
+}
+
+#GameCanvas {
+  border: 20px solid purple;
+  background-color: #282828;
+}
+
+.nopadding {
+  padding: 0 !important;
+  margin: 0 !important;
 }

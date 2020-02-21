@@ -4,10 +4,12 @@ import Navbar from "./components/Navbar";
 import "bootstrap/dist/css/bootstrap.css";
 
 const drawGrid = true;
-const width = 120;
-const height = 120;
+const followGrid = true;
+const width = 1200;
+const height = 500;
 const cols = width / 20;
 const rows = height / 20;
+const gamespeed = 1;
 
 class App extends Component {
   constructor() {
@@ -56,11 +58,149 @@ class App extends Component {
     });
   }
 
-  updateGame = () => {
+  snakeContains(location) {
     let snake = this.state.snake;
-    let fruit = this.state.fruit;
+    for (let i = 0; i < snake.length; i++) {
+      if (snake[i].x === location.x && snake[i].y === location.y) {
+        // console.log(
+        //   "Snake contains",
+        //   location,
+        //   this.getPathIndex(location, this.state.path)
+        // );
+        return true;
+      }
+    }
+    return false;
+  }
 
+  getDistance(point1, point2) {
+    let path = this.state.path;
+    if (point1 > point2) {
+      return path.length - point1 + point2;
+    } else if (point2 >= point1) {
+      return point2 - point1;
+    }
+  }
+
+  checkDirection(dir) {
+    let { snake, fruit, path } = this.state;
+    let headIndex = this.getPathIndex(snake[0], path);
+    let fruitIndex = this.getPathIndex(fruit, path);
+    let dirIndex = this.getPathIndex(dir, path);
+
+    if (dir.x >= 0 && dir.x < width && dir.y >= 0 && dir.y < height) {
+      // The direction is in the grid
+      if (dirIndex !== headIndex - 1 && !this.snakeContains(dir)) {
+        // We will not allow the snake to travel to the path backwards (the path directly before the head)
+        let distance = this.getDistance(dirIndex, fruitIndex);
+        // console.log(
+        //   "Distance to fruit: ",
+        //   distance,
+        //   "index ",
+        //   dirIndex,
+        //   " to ",
+        //   fruitIndex
+        // );
+
+        // Loop through the snake and see if there if this distance is valid
+        for (let i = 0; i < snake.length; i++) {
+          let bodyIndex = this.getPathIndex(snake[i], path);
+          let distanceToSnake = this.getDistance(dirIndex, bodyIndex);
+          if (distanceToSnake < snake.length + 2 - i)
+            // Also account for the snake growing
+            return false;
+        }
+
+        return distance;
+      }
+    }
+    return false;
+  }
+
+  getBestPath() {
+    let { snake, path } = this.state;
+    let directions = [];
+    let distance;
+
+    // Add any dirictions that are valid to an array
+    let dir = { x: snake[0].x - 20, y: snake[0].y }; // LEFT
+    distance = this.checkDirection(dir);
+    if (distance !== false) {
+      dir.distance = distance;
+      directions.push(dir);
+    }
+
+    dir = { x: snake[0].x + 20, y: snake[0].y }; // RIGHT
+    distance = this.checkDirection(dir);
+    if (distance !== false) {
+      dir.distance = distance;
+      directions.push(dir);
+    }
+
+    dir = { x: snake[0].x, y: snake[0].y - 20 }; // UP
+    distance = this.checkDirection(dir);
+    if (distance !== false) {
+      dir.distance = distance;
+      directions.push(dir);
+    }
+
+    dir = { x: snake[0].x, y: snake[0].y + 20 }; // DOWN
+    distance = this.checkDirection(dir);
+    if (distance !== false) {
+      dir.distance = distance;
+      directions.push(dir);
+    }
+
+    // Choose the option with the smallest distance
+    let bestIndex = -1;
+    let bestDistance = path.length;
+    for (let i = 0; i < directions.length; i++) {
+      if (directions[i].distance < bestDistance) {
+        bestIndex = i;
+        bestDistance = directions[i].distance;
+      }
+    }
+
+    // Return the value if we found one
+    if (bestIndex > -1) return directions[bestIndex];
+    else return false;
+  }
+
+  updateGame = () => {
+    let { snake, fruit, path } = this.state;
     let head = JSON.parse(JSON.stringify(snake[0]));
+    let headIndex = this.getPathIndex(head, path);
+    let nextLocation;
+    if (headIndex === path.length - 1) nextLocation = path[0];
+    else nextLocation = path[headIndex + 1];
+
+    if (followGrid && this.state.path.length > 0) {
+      let bestChoice = false;
+      let dir = "";
+
+      if (snake.length < cols * rows * 0.8) {
+        // Only allow snake to make jumps if it takes up less than 80% of available tiles
+        bestChoice = this.getBestPath();
+      }
+
+      if (bestChoice !== false) {
+        console.log(bestChoice, this.getPathIndex(bestChoice, path));
+        if (bestChoice.x > head.x) dir = "right";
+        else if (bestChoice.x < head.x) dir = "left";
+        else if (bestChoice.y > head.y) dir = "down";
+        else if (bestChoice.y < head.y) dir = "up";
+      }
+
+      // If we did not find a direction, or snake is too long, travel to the next direction in the path
+      if (dir === "") {
+        if (nextLocation.x > head.x) dir = "right";
+        else if (nextLocation.x < head.x) dir = "left";
+        else if (nextLocation.y > head.y) dir = "down";
+        else dir = "up";
+      }
+      this.setState({ direction: dir });
+    }
+
     switch (this.state.direction) {
       case "up":
         head.y -= 20;
@@ -81,19 +221,28 @@ class App extends Component {
     snake.unshift(head);
 
     if (head.x === fruit.x && head.y === fruit.y) {
-      fruit = {
-        x: Math.floor(Math.random() * this.state.cols) * 20,
-        y: Math.floor(Math.random() * this.state.rows) * 20
-      };
+      do {
+        fruit = {
+          x: Math.floor(Math.random() * this.state.cols) * 20,
+          y: Math.floor(Math.random() * this.state.rows) * 20
+        };
+      } while (this.doesContainElement(snake, fruit));
     } else {
       snake.pop();
     }
 
-    if (head.x >= 1000 || head.x < 0 || head.y >= 500 || head.y < 0) {
+    if (head.x >= width || head.x < 0 || head.y >= height || head.y < 0) {
       this.setState({ gameover: true });
     }
     snake.filter((elem, index) => {
       if (elem.x === head.x && elem.y === head.y && index !== 0) {
+        console.log(
+          "crash happened at ",
+          head.x,
+          head.y,
+          "index",
+          this.getPathIndex(head, path)
+        );
         this.setState({ gameover: true });
       }
       return null;
@@ -103,7 +252,7 @@ class App extends Component {
     this.updateCanvas();
     if (this.state.gameover || this.state.pause)
       setTimeout(this.gamePaused, 10);
-    else setTimeout(this.updateGame, 100);
+    else setTimeout(this.updateGame, gamespeed);
     // console.log("Updated game");
   };
 
@@ -141,6 +290,7 @@ class App extends Component {
       context.textAlign = "start";
       context.textBaseline = "top";
       context.fillText(index, elem.x, elem.y);
+      return null;
     });
   }
 
@@ -164,42 +314,118 @@ class App extends Component {
     const context = canvas.getContext("2d");
     context.clearRect(0, 0, canvas.width, canvas.height);
     if (drawGrid) this.drawGrid();
-    if (this.state.path !== []) this.drawCycle();
+
     this.drawComponents();
+    if (this.state.path !== []) this.drawCycle();
+  }
+
+  isHamiltonian(path) {
+    if (path.length !== this.state.grid.length) return false;
+    if (!this.isNeighbor(path[0], path[path.length - 1])) return false;
+    return true;
+  }
+
+  getNeighbors(current) {
+    let neighbors = [];
+    let left = { x: current.x - 20, y: current.y };
+    if (left.x >= 0) neighbors.push(left);
+    let right = { x: current.x + 20, y: current.y };
+    if (right.x < width) neighbors.push(right);
+    let up = { x: current.x, y: current.y - 20 };
+    if (up.y >= 0) neighbors.push(up);
+    let down = { x: current.x, y: current.y + 20 };
+    if (down.y < height) neighbors.push(down);
+    return neighbors;
+  }
+
+  doesContainElement(arr, element) {
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i].x === element.x && arr[i].y === element.y) return true;
+    }
+    return false;
+  }
+
+  getRandomUnvisitedNeighbor(current, path) {
+    let neighbors = this.getNeighbors(current);
+    let neighbor;
+    do {
+      neighbor = neighbors[Math.floor(Math.random() * neighbors.length)];
+    } while (this.doesContainElement(path, neighbor));
+    // console.log("path is", JSON.parse(JSON.stringify(path)));
+    // console.log(neighbor, "is an unvisited neighbor of ", current);
+    return neighbor;
+  }
+
+  hasUnvisitdNeighbor(current, path) {
+    let neighbors = this.getNeighbors(current);
+    for (let i = 0; i < neighbors.length; i++) {
+      if (!this.doesContainElement(path, neighbors[i])) return true;
+    }
+    return false;
+  }
+
+  findEdgeToRemove(elem1, elem2, path) {
+    for (let i = path.length - 1; i > 0; i--) {
+      if (elem1.x === path[i].x && elem1.y === path[i].y) return elem1;
+      if (elem2.x === path[i].x && elem2.y === path[i].y) return elem2;
+    }
+  }
+
+  getPathIndex(elem, path) {
+    for (let i = 0; i < path.length; i++) {
+      if (elem.x === path[i].x && elem.y === path[i].y) {
+        return i;
+      }
+    }
   }
 
   generateHamCycle() {
     const grid = this.state.grid;
-    // let index = Math.floor(Math.random() * grid.length);
-    let index = 0;
-    const randomTile = grid[index];
+    let current = grid[0];
     let path = [];
-    path[0] = randomTile;
+    path[0] = current;
 
-    if (this.hamCycleLoop(path, randomTile, index))
-      console.log("A PATH WAS FOUND", path);
-    if (path.length > 1) this.setState({ path: path });
+    while (!this.isHamiltonian(path)) {
+      if (path.length > grid.length) break;
+      if (this.hasUnvisitdNeighbor(current, path)) {
+        let next = this.getRandomUnvisitedNeighbor(current, path);
+        path.push(next);
+        current = next;
+      } else {
+        // We need to modify the edges
+        let neighbors = this.getNeighbors(current);
+        let next = neighbors[Math.floor(Math.random() * neighbors.length)];
+        let index = this.getPathIndex(next, path);
+        if (index === 0) {
+          // Only has 1 edge
+          console.log("EDIT WITH 1 EDGE");
+          path.splice(0, 1);
+          path.push(next);
+          current = next;
+        } else {
+          // Has 2 edge
+          let pointToRemove = this.findEdgeToRemove(
+            path[index - 1],
+            path[index + 1],
+            path
+          );
+          let indexToRemove = this.getPathIndex(pointToRemove, path);
+          let temp = path.slice(indexToRemove, path.length);
+          temp.reverse();
+          temp.pop();
+          path.splice(indexToRemove, path.length - 1);
+          path.push(...temp);
+          path.push(pointToRemove);
+          current = pointToRemove;
+        }
+      }
+    }
+    console.log("The path is hamiltonian");
+    for (let i = 0; i < path.length; i++) {
+      path[i].index = i;
+    }
+    this.setState({ path: path });
   }
-
-  // generateNeighbors() {
-  //   const grid = this.state.grid;
-  //   let neighbors = [];
-  //   for (let i = 0; i < grid.length; i++) {
-  //     neighbors[i] = [];
-  //     for (let j = 0; j < grid.length; j++) {
-  //       neighbors[i][j] = -1;
-  //     }
-  //   }
-
-  //   console.log("Pre modified neighbors", neighbors);
-  //   for (let i = 0; i < grid.length; i++) {
-  //     for (let j = 0; j < grid.length; j++) {
-  //       if (this.isNeighbor(grid[i], grid[j])) neighbors[i][j] = 1;
-  //       else neighbors[i][j] = 0;
-  //     }
-  //   }
-  //   console.log("Updated neighbors", neighbors);
-  // }
 
   isNeighbor(tile1, tile2) {
     if (tile1.x === tile2.x) {
@@ -208,52 +434,6 @@ class App extends Component {
       if (tile1.x + 20 === tile2.x || tile1.x - 20 === tile2.x) return true;
     }
     return false;
-  }
-
-  hamCycleLoop(path, currPos) {
-    console.log(path);
-    const grid = this.state.grid;
-
-    if (path.length === grid.length) {
-      if (this.isNeighbor(path[0], path[path.length - 1])) {
-        return true;
-      } else {
-        return false;
-      }
-    }
-
-    for (let index = 0; index < grid.length; index++) {
-      let nextPos = grid[index];
-      if (this.isNeighbor(currPos, nextPos)) {
-        if (!path.includes(nextPos)) {
-          path.push(nextPos);
-          if (this.hamCycleLoop(path, nextPos)) return true;
-
-          path.pop(); // If we cannot form a loop with this arrangement, remove the last element
-        }
-      }
-    }
-
-    return false;
-
-    // outer: while (path.length < grid.length) {
-    //   for (let index = 0; index < grid.length; index++) {
-    //     if (index >= grid.length) index = 0;
-    //     let nextPos = grid[index];
-    //     if (this.isNeighbor(currPos, nextPos)) {
-    //       if (!path.includes(nextPos)) {
-    //         path.push(nextPos);
-    //         currPos = nextPos;
-    //         continue outer;
-    //       }
-    //     }
-    //   }
-    //   console.log("there is no valid Hamiltonian path");
-    //   console.log(path);
-    //   return [];
-    // }
-    // console.log("A PATH WAS FOUND", path);
-    // return path;
   }
 
   handleGenerate = () => {
@@ -288,10 +468,6 @@ class App extends Component {
     }
   };
 
-  // updateSize = () => {
-  //   this.setState({ myWidth: window.innerWidth, myHeight: window.innerHeight });
-  // };
-
   render() {
     return (
       <div className="container-fluid">
@@ -300,6 +476,7 @@ class App extends Component {
         <div className="row">
           <div className="col-1"></div>
           <div className="col-10">
+            <span>Score: {this.state.snake.length} </span> <br></br>
             <canvas id="GameCanvas" width={width} height={height}></canvas>
           </div>
         </div>

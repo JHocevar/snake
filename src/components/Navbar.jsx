@@ -6,10 +6,14 @@ class Navbar extends Component {
   render() {
     return (
       <div className="row" id="navbar">
-        <div className="col-4 align-self-center">
-          <button className="btn btn-primary" onClick={this.props.onGenerate}>
-            {" "}
-            Generate Ham Cycle{" "}
+        <div className="col-2 align-self-center">
+          <button className="btn btn-primary" onClick={this.props.onMenu}>
+            Auto Play
+          </button>
+        </div>
+        <div className="col-2 align-self-center">
+          <button className="btn btn-primary" onClick={this.props.onDisplay}>
+            {this.props.display ? "Hide grid" : "Show grid"}
           </button>
         </div>
         <div className="col-4">
